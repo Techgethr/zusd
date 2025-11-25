@@ -3,20 +3,20 @@ use dep::aztec::macros::aztec;
 #[aztec]
 contract ZStablecoin {
     use dep::aztec::prelude::{
-        AztecAddress, Map, PrivateSet, PublicMutable, SharedMutable, 
-        NoteHeader, NoteInterface, FunctionSelector
+        AztecAddress, Map, PrivateSet, PublicMutable, 
+        NoteHeader, NoteInterface
     };
     use dep::aztec::keys::getters::get_public_keys;
-    // Importamos la definición estándar de Token
+
     use dep::token::Token; 
 
-    // --- Estructuras Personalizadas (Notas) ---
     
+    // Private NOTE to track user's collateralized debt position (CDP)
     #[note]
     struct CDPNote {
         owner: AztecAddress,
         collateral_amount: Field,      // Cantidad de ZEC depositado
-        debt_principal: Field,         // Deuda original solicitada
+        debt_principal: Field,         // Deuda original solicitada (ZUSD)
         start_interest_index: Field,   // Índice global al momento de abrir la posición
         header: NoteHeader,
     }
@@ -24,70 +24,91 @@ contract ZStablecoin {
     #[storage]
     struct Storage {
         // Direcciones de los contratos vinculados
+        admin: PublicMutable<AztecAddress>,       // Administrador para tareas críticas
         zec_token: PublicMutable<AztecAddress>,   // El colateral (Mock ZEC)
         zusd_token: PublicMutable<AztecAddress>,  // La stablecoin que este contrato controla
         oracle: PublicMutable<AztecAddress>,      // Fuente de precios
         
-        // Mapeo: Dueño -> Set de Notas de Posición
+        // Mapeo: Dueño -> Set de Notas de Posición (CDPs)
         positions: Map<AztecAddress, PrivateSet<CDPNote>>,
         
         // Variables de Riesgo y Estado Global
         min_collateral_ratio: PublicMutable<Field>, // Ej: 150 (representando 150%)
-        interest_index: PublicMutable<Field>,       // Acumulador de intereses (Base 1e9)
+        interest_index: PublicMutable<Field>,       // Acumulador de intereses (Base 1e9, ej: 1000000000)
     }
 
-    // --- Lógica Principal ---
 
     #[public]
     #[initializer]
     fn constructor(
+        admin_address: AztecAddress,
         zec_address: AztecAddress, 
-        zusd_address: AztecAddress,
         oracle_address: AztecAddress
     ) {
+        // We initialize the admin and known addresses
+        storage.admin.write(admin_address);
         storage.zec_token.write(zec_address);
-        storage.zusd_token.write(zusd_address);
         storage.oracle.write(oracle_address);
         
-        storage.min_collateral_ratio.write(150); // 150%
-        storage.interest_index.write(1000000000); // 1.0 con 9 decimales de precisión
+        // The ZUSD address is initialized later (see set_zusd_token_address)
+        storage.min_collateral_ratio.write(150); 
+        storage.interest_index.write(1000000000); 
     }
 
-    // 1. ABRIR POSICIÓN (Privado)
-    // Deposita ZEC, verifica solvencia y acuña ZUSD
+    // Set the ZUSD token contract address
+    #[public]
+    fn set_zusd_token_address(new_zusd_address: AztecAddress) {
+        let admin = storage.admin.read();
+        assert(context.msg_sender() == admin, "Vault: Solo el administrador puede configurar ZUSD");
+        storage.zusd_token.write(new_zusd_address);
+    }
+
+    // 1. Open position (Private)
+    // Deposit ZEC collateral and borrow ZUSD
     #[private]
     fn open_position(
         collateral_amount: Field, 
-        borrow_amount: Field,
-        oracle_price: Field // En prod: pasaría una prueba de lectura histórica
+        borrow_amount: Field
     ) {
         let user = context.msg_sender();
         let this_address = context.this_address();
         
-        // A. Obtener datos globales necesarios (Lectura de estado público en privado)
-        // Nota: En una app real, usaríamos un oráculo con pruebas de inclusión histórica
         let interest_index = storage.interest_index.read();
+        let min_ratio = storage.min_collateral_ratio.read();
+
+        let oracle_address = storage.oracle.read();
         
-        // B. Gestión de Riesgo (Risk Management)
-        // Valor Colateral = Cantidad * Precio
+        // NOTE: In a real implementation, the selector should be obtained from the SimpleOracle contract. 
+        // We use a placeholder value for demonstration.
+        let get_price_selector: Field = 0x12345678; 
+        
+        let oracle_price_result = context.call_public_function(
+            oracle_address, 
+            get_price_selector, 
+            &[] // No arguments
+        );
+
+        // We extract the first (and only) value (the price)
+        let oracle_price = oracle_price_result.get(0);
+        
+        
         let collateral_value = collateral_amount * oracle_price;
-        // Colateral Requerido = Préstamo * Ratio (150%)
-        let required_collateral = borrow_amount * storage.min_collateral_ratio.read() / 100;
+        
+        let required_collateral = borrow_amount * min_ratio / 100;
 
         assert(collateral_value >= required_collateral, "ZStablecoin: Subcollateralized position");
 
-        // C. Transferir Colateral (ZEC) del Usuario al Vault
-        // Requiere que el usuario haya aprobado (authwit) al contrato
+        
         let zec = storage.zec_token.read();
+        
         Token::at(zec).transfer(user, this_address, collateral_amount).call(&mut context);
 
-        // D. Acuñar Stablecoin (ZUSD) para el Usuario
-        // El contrato ZStablecoin debe tener rol de MINTER en el contrato ZUSD
+        // Mint the borrowed ZUSD to the user
         let zusd = storage.zusd_token.read();
+        // Send using mint_private function in ZUSD contract
         Token::at(zusd).mint_private(user, borrow_amount).call(&mut context);
 
-        // E. Crear la Nota de Posición (CDP)
-        // Guardamos el índice actual para calcular intereses después
+        // Create and store the CDP note
         let mut note = CDPNote {
             owner: user,
             collateral_amount: collateral_amount,
@@ -98,69 +119,50 @@ contract ZStablecoin {
         storage.positions.at(user).insert(&mut note, true);
     }
 
-    // 2. CERRAR POSICIÓN (Privado)
-    // Paga la deuda + intereses y recupera el colateral
+    // 2. Close the position (Private)
+    // Repay ZUSD and withdraw ZEC collateral
+    #[private]
     #[private]
     fn close_position(
-        amount_to_repay: Field // Cantidad de deuda base que se quiere pagar
+        collateral_amount: Field,      
+        debt_principal: Field,         
+        start_interest_index: Field    
     ) {
         let user = context.msg_sender();
         let this_address = context.this_address();
 
-        // A. Obtener notas de posición del usuario
-        // Nota: En Noir real, iteramos sobre las notas. Aquí simplificamos asumiendo 
-        // que tomamos una nota específica o usamos 'get_notes' con un filtro.
-        let positions = storage.positions.at(user);
-        
-        // --- INICIO SIMULACIÓN DE SELECCIÓN DE NOTA ---
-        // En código real: let note = positions.get_note(...);
-        // Aquí asumimos que operamos sobre la última nota insertada para el ejemplo
-        // y que 'amount_to_repay' coincide con el principal de esa nota.
-        // --- FIN SIMULACIÓN ---
-
-        // B. Calcular Deuda Total con Interés Compuesto
-        // Formula: DeudaActual = Principal * (IndiceActual / IndiceInicial)
+        // We calculate the repayment amount
         let current_index = storage.interest_index.read();
-        // Simulamos valores de la nota recuperada:
-        let note_principal = amount_to_repay; 
-        let note_start_index = 1000000000; // Valor simulado de la nota
-        let note_collateral = 1000;       // Valor simulado de la nota
+        let repayment_amount = debt_principal * current_index / start_interest_index;
 
-        // Calculamos cuánto ZUSD debe pagar realmente el usuario
-        // Ejemplo: Si el índice subió de 1.0 a 1.1, paga 10% más.
-        let repayment_amount = note_principal * current_index / note_start_index;
-
-        // C. Quemar ZUSD del usuario (Repago)
-        // Transfiere ZUSD del usuario al contrato y luego lo quema (o burn directo)
+        // We burn the ZUSD from the user
         let zusd = storage.zusd_token.read();
         Token::at(zusd).burn_private(user, repayment_amount).call(&mut context);
 
-        // D. Devolver Colateral (ZEC)
+        // We transfer the collateral back to the user
         let zec = storage.zec_token.read();
-        Token::at(zec).transfer(this_address, user, note_collateral).call(&mut context);
+        Token::at(zec).transfer(this_address, user, collateral_amount).call(&mut context);
 
-        // E. Eliminar la nota de posición (Nullify)
-        positions.remove(note); 
     }
 
-    // 3. GENERAR RENDIMIENTO (Público)
-    // Incrementa el índice global. Esto hace que todas las deudas crezcan automáticamente.
-    // Simula el costo de pedir prestado (borrow fee).
+    // 3. Generate yield (Public)
+    // Simulate interest accrual by updating the global interest index
     #[public]
     fn accrue_interest(rate_permille: Field) {
+        let admin = storage.admin.read();
+        assert(context.msg_sender() == admin, "Vault: Only admin can accrue interest");
+
         let current_index = storage.interest_index.read();
-        // Incrementa el índice. Ej: 1000 -> 1005 (+0.5%)
         let new_index = current_index + (current_index * rate_permille / 1000);
         storage.interest_index.write(new_index);
     }
     
-    // 4. LIQUIDACIÓN (Semi-Privada / Pública)
-    // En un sistema ZK completo, la liquidación es compleja. 
-    // Aquí proveemos un método helper para verificar solvencia públicamente si se revelan los datos.
+    // Solvency check, to use as help for liquidators
     #[public]
     fn check_solvency(debt: Field, collateral: Field, price: Field) -> bool {
+        let min_ratio = storage.min_collateral_ratio.read();
         let collateral_value = collateral * price;
-        let required = debt * 150 / 100;
+        let required = debt * min_ratio / 100;
         collateral_value >= required
     }
 }

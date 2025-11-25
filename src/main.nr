@@ -15,26 +15,36 @@ contract ZStablecoin {
     #[note]
     struct CDPNote {
         owner: AztecAddress,
-        collateral_amount: Field,      // Cantidad de ZEC depositado
-        debt_principal: Field,         // Deuda original solicitada (ZUSD)
-        start_interest_index: Field,   // Índice global al momento de abrir la posición
+        // ZEC Collateral deposited
+        collateral_amount: Field,
+        // ZUSD Debt principal
+        debt_principal: Field,
+        // Interest index at position opening
+        start_interest_index: Field,
         header: NoteHeader,
     }
 
     #[storage]
     struct Storage {
-        // Direcciones de los contratos vinculados
-        admin: PublicMutable<AztecAddress>,       // Administrador para tareas críticas
-        zec_token: PublicMutable<AztecAddress>,   // El colateral (Mock ZEC)
-        zusd_token: PublicMutable<AztecAddress>,  // La stablecoin que este contrato controla
-        oracle: PublicMutable<AztecAddress>,      // Fuente de precios
+        // Addresses of linked contracts
+        // Contract admin
+        admin: PublicMutable<AztecAddress>,
+        // Mock ZEC Token Contract
+        zec_token: PublicMutable<AztecAddress>,
+        // ZUSD Token Contract
+        zusd_token: PublicMutable<AztecAddress>,
+        // Price Oracle
+        oracle: PublicMutable<AztecAddress>,
         
-        // Mapeo: Dueño -> Set de Notas de Posición (CDPs)
+        // Mapping: Owner -> Set of Position Notes (CDPs)
         positions: Map<AztecAddress, PrivateSet<CDPNote>>,
         
-        // Variables de Riesgo y Estado Global
-        min_collateral_ratio: PublicMutable<Field>, // Ej: 150 (representando 150%)
-        interest_index: PublicMutable<Field>,       // Acumulador de intereses (Base 1e9, ej: 1000000000)
+
+        // Global State Variables
+        // 150 (representing 150%)
+        min_collateral_ratio: PublicMutable<Field>,
+        // Interest index for accruing interest on debt (Base 1e9, ej: 1000000000)
+        interest_index: PublicMutable<Field>,
     }
 
 

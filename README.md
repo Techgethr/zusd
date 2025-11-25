@@ -1,229 +1,115 @@
-<div align="center">
-  <a href="https://aztec.network">
-    <img src="https://cdn.prod.website-files.com/6847005bc403085c1aa846e0/6847514dc37a9e8cfe8a66b8_aztec-logo.svg" alt="Aztec Protocol Logo" width="300">
-  </a>
-</div>
+# ZUSD - A Private Stablecoin built with Aztec and Zcash
 
-# Aztec Starter
+ZUSD is a privacy-focused stablecoin protocol built on the [Aztec Network](https://aztec.network/) that enables users to collateralize ZEC ([Zcash](https://z.cash/)) to generate ZUSD, a USD-pegged stablecoin with zero-knowledge privacy features.
 
-## Sandbox
+## Table of Contents
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [How It Works](#how-it-works)
+- [Key Features](#key-features)
+- [Contracts](#contracts)
+- [Setup](#setup)
+- [Development](#development)
+- [Testing](#testing)
+- [Security](#security)
+- [Team](#team)
 
-This repo is meant to be a starting point for learning to write Aztec contracts and tests on the Aztec sandbox (local development environment). It includes an example contract, useful commands in `package.json` and helpful scripts in `./scripts`.
+## Overview
 
-You can find the **Easy Private Voting contract** in `./src/main.nr`. A simple integration test is in `./src/test/e2e/index.test.ts`.
+ZUSD is a decentralized, privacy-preserving stablecoin protocol that allows users to generate ZUSD stablecoins by depositing ZEC (Zcash) as collateral. The system maintains a minimum collateralization ratio of 150%, meaning users must deposit at least $150 worth of ZEC to borrow $100 worth of ZUSD.
 
-## Devnet
+The protocol leverages Aztec Network's zero-knowledge technology to provide complete privacy for user positions, balances, and transactions while maintaining the stability of a traditional stablecoin.
 
-This repo connects to a locally running Aztec Sandbox by default, but can be configured to connect to the devnet by specifying `AZTEC_ENV=devnet` in a `.env` file or by prefixing a command e.g. `AZTEC_ENV=devnet yarn deploy`.
+## Architecture
 
-<div align="center">
+The ZUSD protocol consists of three interconnected contracts:
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/AztecProtocol/aztec-starter?logo=github&color=yellow)](https://github.com/AztecProtocol/aztec-starter/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/AztecProtocol/aztec-starter?logo=github&color=blue)](https://github.com/AztecProtocol/aztec-starter/network/members)
-[![Build](https://github.com/AztecProtocol/aztec-starter/actions/workflows/update.yaml/badge.svg)](https://github.com/AztecProtocol/aztec-starter/actions)
-[![GitHub last commit](https://img.shields.io/github/last-commit/AztecProtocol/aztec-starter?logo=git)](https://github.com/AztecProtocol/aztec-starter/commits/main)
-[![License](https://img.shields.io/github/license/AztecProtocol/aztec-starter)](https://github.com/AztecProtocol/aztec-starter/blob/main/LICENSE)
-[![Discord](https://img.shields.io/badge/discord-join%20chat-5B5EA6)](https://discord.gg/aztec)
-[![Twitter Follow](https://img.shields.io/twitter/follow/aztecnetwork?style=flat&logo=twitter)](https://x.com/aztecnetwork)
+### 1. ZStablecoin Contract (main.nr)
+- Manages collateralized debt positions (CDPs)
+- Controls minimum collateral ratios (150%)
+- Handles position opening/closing
+- Tracks and accrues interest on outstanding debt
+- Performs solvency checks for liquidation purposes
 
-</div>
+### 2. ZUSD Token Contract (zusd_token.nr)
+- Implements the ZUSD stablecoin with private transfers
+- Uses Aztec's PrivateSet for confidential balance storage
+- Only mintable/burnable by the ZStablecoin vault contract
+- Public total supply tracking for transparency
 
----
+### 3. Simple Oracle Contract (ZcashOracle.nr)
+- Provides ZEC/USD price feeds for collateralization calculations (for now, just one admin updates the value)
+- Admin-controlled price updates (with plans for decentralized oracles)
+- Used to determine if positions maintain proper collateralization
 
-## 🚀 **Getting Started**
+## How It Works
 
-Use **Node.js version 22.15.0**.
+1. **Position Opening**: Users deposit ZEC collateral into the ZStablecoin contract and borrow ZUSD against it, maintaining a minimum 150% collateralization ratio.
 
-[Start your codespace from the codespace dropdown](https://docs.github.com/en/codespaces/getting-started/quickstart).
+2. **Interest Accrual**: The system accrues interest on outstanding debt through an interest index that increases over time.
 
-Get the **sandbox, aztec-cli, and other tooling** with this command:
+3. **Private Transfers**: ZUSD can be transferred privately using Aztec's confidential transaction technology.
 
+4. **Position Closing**: Users repay their ZUSD debt plus accrued interest to retrieve their ZEC collateral.
+
+5. **Liquidation Protection**: The protocol includes solvency checks to identify undercollateralized positions.
+
+## Key Features
+
+- **Complete Privacy**: All user balances and positions are private by default
+- **Decentralized**: No centralized control over stablecoin issuance
+- **Over-collateralization**: Maintains 150% minimum collateralization for stability
+- **Interest-bearing**: Users pay interest on borrowed amounts
+- **ZK-SNARKs**: Built on Aztec's privacy technology for secure, private transactions
+
+## Setup
+
+### Prerequisites
+- Node.js v22
+- Yarn package manager
+- Aztec Sandbox (for local development)
+
+- **This project assumes there is a ZEC token deployed in the Aztec network**.
+
+### Getting Started
+1. Clone the repository
+2. Install dependencies: `yarn install`
+3. Start the Aztec sandbox: `aztec start --sandbox`
+4. Compile contracts: `yarn compile`
+5. Generate TypeScript artifacts: `yarn codegen`
+
+### Configuration
+The project supports different environments (local, devnet) using configuration files in the `config/` directory.
+
+## Development
+
+### Contract Compilation
 ```bash
-bash -i <(curl -s https://install.aztec.network)
-```
-
-Install the correct version of the toolkit with:
-
-```bash
-export VERSION=3.0.0-devnet.5
-aztec-up && docker pull aztecprotocol/aztec:$VERSION && docker tag aztecprotocol/aztec:$VERSION aztecprotocol/aztec:latest
-```
-
-### Environment Configuration
-
-This project uses JSON configuration files to manage environment-specific settings:
-
-- `config/sandbox.json` - Configuration for local sandbox development
-- `config/devnet.json` - Configuration for devnet deployment
-
-The system automatically loads the appropriate configuration file based on the `ENV` environment variable. If `ENV` is not set, it defaults to `sandbox`.
-
-The configuration files contain network URLs, timeouts, and environment-specific settings. You can modify these files to customize your development environment.
-
-### Running on Sandbox (Local Development)
-
-Start the sandbox with:
-
-```bash
-aztec start --sandbox
-```
-
-Run scripts and tests with default sandbox configuration:
-
-```bash
-yarn compile && yarn codegen  # Compile contract and generate TS
-yarn deploy       # Deploy to sandbox
-yarn test         # Run tests on sandbox
-```
-
-### Running on Devnet
-
-All scripts support a `::devnet` suffix to automatically use devnet configuration:
-
-```bash
-yarn deploy::devnet              # Deploy to devnet
-yarn test::devnet                # Run tests on devnet
-yarn deploy-account::devnet      # Deploy account to devnet
-yarn interaction-existing-contract::devnet  # Interact with devnet contracts
-```
-
-The `::devnet` suffix automatically sets `ENV=devnet`, loading configuration from `config/devnet.json`.
-
----
-
-## 📦 **Install Packages**
-
-```bash
-yarn install
-```
-
----
-
-## 🏗 **Compile**
-
-```bash
-aztec-nargo compile
-```
-
-or
-
-```bash
+# Compile Noir contracts
 yarn compile
-```
 
----
-
-## 🔧 **Codegen**
-
-Generate the **contract artifact JSON** and TypeScript interface:
-
-```bash
+# Generate TypeScript artifacts
 yarn codegen
 ```
 
----
 
-:warning: Tests and scripts set up and run the Private Execution Environment (PXE) and store PXE data in the `./store` directory. If you restart the sandbox, you will need to delete the `./store` directory to avoid errors.
-
-## Transaction Profiling
-
-**Make sure the sandbox is running before profiling.**
-
+### Deployment
 ```bash
-aztec start --sandbox
+# Deploy to local sandbox
+yarn deploy
+
+# Deploy to devnet
+yarn deploy::devnet
 ```
 
-Then run an example contract deployment profile with:
+## Security
 
-```bash
-yarn profile
-```
+This project is in beta, required more development before use in production. Key considerations:
 
-## 🧪 **Test**
+- The oracle implementation is currently centralized and should be replaced with a decentralized solution for production
+- Proper risk management includes the 150% minimum collateralization requirement
+- All contract interactions are built using Aztec's secure zero-knowledge primitives
 
-**Make sure the sandbox is running before running tests.**
+## Team
 
-```bash
-aztec start --sandbox
-```
-
-Then test with:
-
-```bash
-yarn test
-```
-
-Testing will run the **TypeScript tests** defined in `index.test.ts` inside `./src/test/e2e`, as well as the [Aztec Testing eXecution Environment (TXE)](https://docs.aztec.network/developers/guides/smart_contracts/testing) tests defined in [`first.nr`](./src/test/first.nr) (imported in the contract file with `mod test;`).
-
-Note: The Typescript tests spawn an instance of the sandbox to test against, and close it once the TS tests are complete.
-
----
-
-## Scripts
-
-You can find a handful of scripts in the `./scripts` folder.
-
-- `./scripts/deploy_account.ts` is an example of how to deploy a schnorr account.
-- `./scripts/deploy_contract.ts` is an example of how to deploy a contract.
-- `./scripts/fees.ts` is an example of how to pay for a contract deployment using various fee payment methods.
-- `./scripts/multiple_wallet.ts` is an example of how to deploy a contract from one wallet instance and interact with it from another.
-- `./scripts/profile_deploy.ts` shows how to profile a transaction and print the results.
-- `./scripts/interaction_existing_contract.ts` demonstrates how to interact with an already deployed voting contract, including casting votes and checking vote counts.
-- `./scripts/get_block.ts` is an example of how to retrieve and display block information from the Aztec node.
-
-### Utility Functions
-
-The `./src/utils/` folder contains utility functions:
-
-- `./src/utils/create_account_from_env.ts` provides functions to create Schnorr accounts from environment variables (SECRET, SIGNING_KEY, and SALT), useful for account management across different environments.
-- `./src/utils/setup_wallet.ts` provides a function to set up and configure the TestWallet with proper configuration based on the environment.
-- `./src/utils/deploy_account.ts` provides a function to deploy Schnorr accounts to the network with sponsored fee payment, including key generation and deployment verification.
-- `./src/utils/sponsored_fpc.ts` provides functions to deploy and manage the SponsoredFPC (Fee Payment Contract) for handling sponsored transaction fees.
-- `./config/config.ts` provides environment-aware configuration loading, automatically selecting the correct JSON config file based on the `ENV` variable.
-
-## ❗ **Error Resolution**
-
-:warning: Tests and scripts set up and run the Private Execution Environment (PXE) and store PXE data in the `./store` directory. If you restart the sandbox, you will need to delete the `./store` directory to avoid errors.
-
-### 🔄 **Update Node.js and Noir Dependencies**
-
-```bash
-yarn update
-```
-
-### 🔄 **Update Contract**
-
-Get the **contract code from the monorepo**. The script will look at the versions defined in `./Nargo.toml` and fetch that version of the code from the monorepo.
-
-```bash
-yarn update
-```
-
-You may need to update permissions with:
-
-```bash
-chmod +x .github/scripts/update_contract.sh
-```
-
-## AI Agent Contributor Guide
-
-This repository includes an [AGENTS.md](./AGENTS.md) file with detailed
-instructions for setting up your environment, running tests, and creating
-pull requests. Please read it before contributing changes.
-
-### 💬 Join the Community:
-
-<p align="left">
-  <a href="https://forum.aztec.network">
-    <img src="https://img.shields.io/badge/Aztec%20%20Forum-5C4C9F?style=for-the-badge&logo=startrek&logoColor=white" alt="Forum">
-  </a>  
-  <a href="https://t.me/AztecAnnouncements_Official">
-    <img src="https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white&style=for-the-badge" alt="Telegram">
-  </a>
-  <a href="https://discord.gg/aztec">
-    <img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Discord">
-  </a>
-  <a href="https://x.com/aztecnetwork">
-    <img src="https://img.shields.io/badge/Twitter-000000?logo=x&logoColor=white&style=for-the-badge" alt="Twitter (X)">
-  </a>
-</p>
+This project was developed by the [Techgethr](https://www.techgethr.com/) team. 

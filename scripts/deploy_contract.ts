@@ -1,4 +1,4 @@
-import { PrivateVotingContract } from "../src/artifacts/PrivateVoting.js"
+import { ZStablecoinContract } from "../src/artifacts/ZStablecoin.js"
 import { Logger, createLogger } from "@aztec/aztec.js/log";
 import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee/testing";
 import { Fr } from "@aztec/aztec.js/fields";
@@ -42,34 +42,22 @@ async function main() {
     logger.info('🗳️  Starting voting contract deployment...');
     logger.info(`📋 Admin address for voting contract: ${address}`);
 
-    const deployTx = PrivateVotingContract.deploy(wallet, address).send({
+    const deployTx = ZStablecoinContract.deploy(wallet, address).send({
         from: address,
         fee: { paymentMethod: sponsoredPaymentMethod }
     });
 
     logger.info('⏳ Waiting for deployment transaction to be mined...');
-    const votingContract = await deployTx.deployed({ timeout: timeouts.deployTimeout });
+    const zStablecoinContract = await deployTx.deployed({ timeout: timeouts.deployTimeout });
 
     logger.info(`🎉 Voting Contract deployed successfully!`);
-    logger.info(`📍 Contract address: ${votingContract.address}`);
+    logger.info(`📍 Contract address: ${zStablecoinContract.address}`);
     logger.info(`👤 Admin address: ${address}`);
 
-    // Verify deployment
-    logger.info('🔍 Verifying contract deployment...');
-    try {
-        // Test a read operation
-        logger.info('🧪 Testing contract read operation...');
-        const initialVoteCount = await votingContract.methods.get_vote(Fr.fromString("1")).simulate({
-            from: address
-        });
-        logger.info(`📊 Initial vote count for candidate 1: ${initialVoteCount}`);
 
-    } catch (error) {
-        logger.error(`❌ Contract verification failed: ${error}`);
-    }
 
     // Get contract instance for instantiation data
-    const instance = votingContract.instance;
+    const instance = zStablecoinContract.instance;
     if (instance) {
         logger.info('📦 Contract instantiation data:');
         logger.info(`Salt: ${instance.salt}`);
@@ -85,7 +73,7 @@ async function main() {
 
     logger.info('🏁 Deployment process completed successfully!');
     logger.info(`📋 Summary:`);
-    logger.info(`   - Contract Address: ${votingContract.address}`);
+    logger.info(`   - Contract Address: ${zStablecoinContract.address}`);
     logger.info(`   - Admin Address: ${address}`);
     logger.info(`   - Sponsored FPC: ${sponsoredFPC.address}`);
 }

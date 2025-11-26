@@ -61,7 +61,7 @@ graph TD
     A[User owns ZEC] --> B[Deposits ZEC as collateral in the ZStablecoin contract]
     B --> C{The protocol verifies a minimum collateralization ratio of 150%}
     C -->|It does not comply| D[ZEC refund to user - Loan denied]
-    C -->|It complies| E[A collateralized debt position (CDP) note is created]
+    C -->|It complies| E[A collateralized debt position - CDP note is created]
     E --> F[Contract mints ZUSD<br/>and sends it to the user]
     F --> G[User owns ZUSD to use]
     G --> H[User can privately transfer ZUSD<br/>to other users]

@@ -54,6 +54,35 @@ The ZUSD protocol consists of three interconnected contracts:
 
 5. **Liquidation Protection**: The protocol includes solvency checks to identify undercollateralized positions.
 
+## Flow Diagram
+
+```mermaid
+graph TD
+    A[User owns ZEC] --> B[Deposits ZEC as collateral in the ZStablecoin contract]
+    B --> C{The protocol verifies a minimum collateralization ratio of 150%}
+    C -->|It does not comply| D[ZEC refund to user - Loan denied]
+    C -->|It complies| E[A collateralized debt position (CDP) note is created]
+    E --> F[Contract mints ZUSD<br/>and sends it to the user]
+    F --> G[User owns ZUSD to use]
+    G --> H[User can privately transfer ZUSD<br/>to other users]
+    G --> I[User can use ZUSD to purchase goods/services]
+    G --> J[User decides to close position]
+    J --> K[User pays ZUSD debt + accrued interest]
+    K --> L[Contract burns ZUSD paid]
+    L --> M[User withdraws their ZEC collateral]
+    M --> N[CDP position closed]
+
+    O[Oracle updates ZEC/USD prices] --> P[Solvency monitoring]
+    P -->|Under-collateralized position| Q[Potential liquidation]
+    P -->|Solvent position| E
+
+    style A fill:#e1f5fe
+    style N fill:#e8f5e8
+    style D fill:#ffebee
+    style Q fill:#fff3e0
+    style G fill:#f3e5f5
+```
+
 ## Key Features
 
 - **Complete Privacy**: All user balances and positions are private by default

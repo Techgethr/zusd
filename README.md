@@ -89,7 +89,7 @@ graph TD
 - **Decentralized**: No centralized control over stablecoin issuance
 - **Over-collateralization**: Maintains 150% minimum collateralization for stability
 - **Interest-bearing**: Users pay interest on borrowed amounts
-- **ZK-SNARKs**: Built on Aztec's privacy technology for secure, private transactions
+- **ZK**: Built on Aztec's privacy technology for secure, private transactions
 
 ## Setup
 
@@ -138,6 +138,14 @@ This project is in beta, required more development before use in production. Key
 - The oracle implementation is currently centralized and should be replaced with a decentralized solution for production
 - Proper risk management includes the 150% minimum collateralization requirement
 - All contract interactions are built using Aztec's secure zero-knowledge primitives
+
+## Next steps
+
+- [x] Build the proof of concept.
+- [ ] Enable a web app to interact with ZUSD.
+- [ ] Allow investors and stakers join and receive interests for their investments (lend and borrow).
+- [ ] Improve contracts and test.
+- [ ] Auditing protocol. 
 
 ## Team
 
